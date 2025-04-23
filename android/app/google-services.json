@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "110928630324",
+    "project_id": "agrotrack-c58e6",
+    "storage_bucket": "agrotrack-c58e6.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:110928630324:android:f52c58f0447453b976b061",
+        "android_client_info": {
+          "package_name": "com.agrotrack.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCPz9--TztazcPEfiupEPScLMypXNXss6k"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:110928630324:android:fe58cdbc70f6157876b061",
+        "android_client_info": {
+          "package_name": "com.example.agrotrack"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCPz9--TztazcPEfiupEPScLMypXNXss6k"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
