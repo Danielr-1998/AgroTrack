@@ -111,6 +111,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     .collection('tasks')
                     .add(taskData);
 
+                // Actualizar el contador de tareas
+                FirebaseFirestore.instance.collection('farms').doc(farmId).update({
+                  'taskCount': FieldValue.increment(1),
+                });
+
                 Navigator.of(context).pop();
               },
               child: const Text('Guardar'),
@@ -125,114 +130,75 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Future<void> _showAllTasksByFarmDialog(BuildContext context, List<QueryDocumentSnapshot> farms) async {
-    final Map<String, List<QueryDocumentSnapshot>> tasksByFarm = {};
+  Future<void> _showPickupDialog(BuildContext context, List<QueryDocumentSnapshot> farms) async {
+    String? selectedFarmId;
+    final pickerNameController = TextEditingController();
+    final quantityController = TextEditingController();
 
-    for (var farm in farms) {
-      final tasksSnapshot = await FirebaseFirestore.instance
-          .collection('farms')
-          .doc(farm.id)
-          .collection('tasks')
-          .get();
-      tasksByFarm[farm.id] = tasksSnapshot.docs;
-    }
-
-    showDialog(
+    await showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Tareas por Finca'),
-        content: SizedBox(
-          width: double.maxFinite,
-          height: 500,
-          child: tasksByFarm.isEmpty
-              ? const Center(child: Text('No hay tareas registradas.'))
-              : ListView(
-                  children: farms.map((farm) {
-                    final farmTasks = tasksByFarm[farm.id] ?? [];
-
-                    return ExpansionTile(
-                      title: Text(farm['name']),
-                      subtitle: Text('Tipo: ${farm['type']}'),
-                      leading: const Icon(Icons.forest),
-                      children: farmTasks.isEmpty
-                          ? [
-                              const Padding(
-                                padding: EdgeInsets.all(8.0),
-                                child: Text('Sin tareas registradas'),
-                              ),
-                            ]
-                          : farmTasks.map((task) {
-                              return ListTile(
-                                title: Text(task['type']),
-                                subtitle: Text('Fecha: ${task['date']}'),
-                                trailing: task['imageUrl'] != ''
-                                    ? Image.file(File(task['imageUrl']), width: 50)
-                                    : null,
-                              );
-                            }).toList(),
-                    );
-                  }).toList(),
-                ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cerrar'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _showFarmsDialog(BuildContext context, List<QueryDocumentSnapshot> farms) async {
-    showDialog(
-      context: context,
-      builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Registrar Recogida'),
+          content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text('Fincas Registradas', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 10),
-              if (farms.isEmpty)
-                const Text('No hay fincas registradas.')
-              else
-                SizedBox(
-                  height: 300,
-                  child: ListView.builder(
-                    itemCount: farms.length,
-                    itemBuilder: (context, index) {
-                      final farm = farms[index];
-                      return Card(
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-                        child: ListTile(
-                          leading: const Icon(Icons.forest),
-                          title: Text(farm['name']),
-                          subtitle: Text('Tipo: ${farm['type']}'),
-                          trailing: IconButton(
-                            icon: const Icon(Icons.add_task, color: Colors.green),
-                            onPressed: () {
-                              Navigator.of(context).pop();
-                              _showAddTaskDialog(context, farm.id);
-                            },
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              const SizedBox(height: 10),
-              Align(
-                alignment: Alignment.bottomRight,
-                child: TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Cerrar'),
-                ),
+              DropdownButton<String>(
+                value: selectedFarmId,
+                hint: const Text('Seleccione una finca'),
+                items: farms.map((farm) {
+                  return DropdownMenuItem<String>(value: farm.id, child: Text(farm['name']));
+                }).toList(),
+                onChanged: (value) {
+                  setState(() {
+                    selectedFarmId = value!;
+                  });
+                },
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: pickerNameController,
+                decoration: const InputDecoration(labelText: 'Nombre del recolector'),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: quantityController,
+                decoration: const InputDecoration(labelText: 'Cantidad'),
+                keyboardType: TextInputType.number,
               ),
             ],
           ),
+          actions: [
+            TextButton(
+              onPressed: () async {
+                if (selectedFarmId != null) {
+                  final pickupData = {
+                    'picker': pickerNameController.text,
+                    'quantity': int.tryParse(quantityController.text) ?? 0,
+                    'date': FieldValue.serverTimestamp(),
+                  };
+
+                  await FirebaseFirestore.instance
+                      .collection('farms')
+                      .doc(selectedFarmId)
+                      .collection('pickups')
+                      .add(pickupData);
+
+                  // Actualizar el contador de recogidas
+                  FirebaseFirestore.instance.collection('farms').doc(selectedFarmId).update({
+                    'pickupCount': FieldValue.increment(1),
+                  });
+
+                  Navigator.of(context).pop();
+                }
+              },
+              child: const Text('Guardar'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancelar'),
+            ),
+          ],
         ),
       ),
     );
@@ -241,91 +207,150 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Dashboard AgroTrack'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () => _signOut(context),
-          ),
-        ],
-      ),
       drawer: const AppDrawer(),
+      appBar: AppBar(
+        title: const Text('Panel Principal'),
+        backgroundColor: Colors.green[800],
+      ),
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance.collection('farms').snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.hasError) {
-            return const Center(child: Text('Error cargando datos'));
-          }
+        builder: (ctx, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
 
+          if (snapshot.hasError) {
+            return const Center(child: Text('Error al cargar los datos.'));
+          }
+
           final farms = snapshot.data!.docs;
 
-          return Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              children: [
-                GestureDetector(
-                  onTap: () => _showFarmsDialog(context, farms),
-                  child: Card(
-                    elevation: 4,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    color: Colors.green[600],
-                    child: SizedBox(
-                      height: 120,
-                      child: Center(
-                        child: ListTile(
-                          leading: const Icon(Icons.forest, size: 40, color: Colors.white),
-                          title: Text(
-                            'Fincas Registradas',
-                            style: Theme.of(context).textTheme.titleLarge!.copyWith(color: Colors.white),
-                          ),
-                          subtitle: Text(
-                            '${farms.length} finca(s)',
-                            style: const TextStyle(color: Colors.white70),
-                          ),
-                          trailing: const Icon(Icons.arrow_forward_ios, color: Colors.white),
+          return StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance.collectionGroup('tasks').snapshots(),
+            builder: (ctx, taskSnapshot) {
+              if (taskSnapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+
+              final tasks = taskSnapshot.data!.docs;
+
+              return StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance.collectionGroup('pickups').snapshots(),
+                builder: (ctx, pickupSnapshot) {
+                  if (pickupSnapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+
+                  final pickups = pickupSnapshot.data!.docs;
+                  final totalPickups = pickups.fold<int>(
+                    0,
+                    (sum, doc) => sum + ((doc['quantity'] ?? 0) as num).toInt(),
+                  );
+
+                  return SingleChildScrollView(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      children: [
+                        _buildDashboardCard(
+                          icon: Icons.forest,
+                          title: 'Fincas Registradas',
+                          subtitle: '${farms.length} fincas',
+                          color: Colors.green,
+                          onTap: () => _showFarmsDialog(context, farms),
                         ),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                GestureDetector(
-                  onTap: () => _showAllTasksByFarmDialog(context, farms),
-                  child: Card(
-                    elevation: 4,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    color: Colors.orange[600],
-                    child: SizedBox(
-                      height: 120,
-                      child: Center(
-                        child: ListTile(
-                          leading: const Icon(Icons.task_alt, size: 40, color: Colors.white),
-                          title: Text(
-                            'Tareas Registradas',
-                            style: Theme.of(context).textTheme.titleLarge!.copyWith(color: Colors.white),
-                          ),
-                          subtitle: const Text(
-                            'Ver todas las tareas por finca',
-                            style: TextStyle(color: Colors.white70),
-                          ),
-                          trailing: const Icon(Icons.arrow_forward_ios, color: Colors.white),
+                        const SizedBox(height: 16),
+                        _buildDashboardCard(
+                          icon: Icons.task_alt,
+                          title: 'Tareas Registradas',
+                          subtitle: '${tasks.length} tareas',
+                          color: Colors.blue,
+                          onTap: () {
+                            // Aquí se puede agregar el código necesario para mostrar tareas
+                          },
                         ),
-                      ),
+                        const SizedBox(height: 16),
+                        _buildDashboardCard(
+                          icon: Icons.local_shipping,
+                          title: 'Recogidas Registradas',
+                          subtitle: '${pickups.length} registros',
+                          color: Colors.orange,
+                          onTap: () => _showPickupDialog(context, farms),
+                        ),
+                        const SizedBox(height: 16),
+                        _buildDashboardCard(
+                          icon: Icons.numbers,
+                          title: 'Total de Recogidas',
+                          subtitle: '$totalPickups unidades',
+                          color: Colors.deepPurple,
+                          onTap: () {},
+                        ),
+                        const SizedBox(height: 32),
+                        ElevatedButton.icon(
+                          icon: const Icon(Icons.add),
+                          label: const Text("Registrar Recogida"),
+                          style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                          onPressed: () => _showPickupDialog(context, farms),
+                        ),
+                        const SizedBox(height: 32),
+                        ElevatedButton.icon(
+                          icon: const Icon(Icons.add),
+                          label: const Text("Registrar Tarea"),
+                          style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
+                          onPressed: () => _showAddTaskDialog(context, farms.first.id),
+                        ),
+                      ],
                     ),
-                  ),
-                ),
-              ],
-            ),
+                  );
+                },
+              );
+            },
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildDashboardCard({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: ListTile(
+        leading: Icon(icon, color: color),
+        title: Text(title, style: TextStyle(fontWeight: FontWeight.bold)),
+        subtitle: Text(subtitle),
+        trailing: const Icon(Icons.arrow_forward_ios),
+        onTap: onTap,
+      ),
+    );
+  }
+
+  void _showFarmsDialog(BuildContext context, List<QueryDocumentSnapshot> farms) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Fincas Registradas'),
+        content: SingleChildScrollView(
+          child: Column(
+            children: farms.map((farm) {
+              return ListTile(
+                title: Text(farm['name']),
+                subtitle: Text('Tipo: ${farm['type']}'),
+              );
+            }).toList(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cerrar'),
+          ),
+        ],
       ),
     );
   }
