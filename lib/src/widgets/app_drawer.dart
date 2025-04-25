@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../screens/task_management_screen.dart';
-import '../screens/farm_register_screen.dart';
+import '../screens/farm/farm_register_screen.dart';
 
 class AppDrawer extends StatelessWidget {
   const AppDrawer({super.key});
